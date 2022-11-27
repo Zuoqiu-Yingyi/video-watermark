@@ -29,17 +29,24 @@ def scale(src: np.array, rate: float) -> np.array:
 def rotate(src: np.array, angle: float, recover: bool = True) -> np.array:
     h, w, k = src.shape
     if recover:
-        h_stage, w_stage = h * 3, w * 3
-        dsize_stage = (w_stage, h_stage)
-        stage = np.zeros((h_stage, w_stage, k))
-        stage[h:h*2, w:w*2, :] = src.copy()
-        M1 = cv.getRotationMatrix2D(((w_stage-1)/2, (h_stage-1)/2), angle, 1)
-        M2 = cv.getRotationMatrix2D(((w_stage-1)/2, (h_stage-1)/2), -angle, 1)
-        return cv.warpAffine(cv.warpAffine(stage, M1, dsize=dsize_stage), M2, dsize=dsize_stage)[h:h*2, w:w*2, :].copy()
+        # 不裁剪旋转恢复
+        # h_stage, w_stage = h * 3, w * 3
+        # dsize_stage = (w_stage, h_stage)
+        # stage = np.zeros((h_stage, w_stage, k))
+        # stage[h:h*2, w:w*2, :] = src.copy()
+        # M1 = cv.getRotationMatrix2D(((w_stage-1)/2, (h_stage-1)/2), angle, 1)
+        # M2 = cv.getRotationMatrix2D(((w_stage-1)/2, (h_stage-1)/2), -angle, 1)
+        # return cv.warpAffine(cv.warpAffine(stage, M1, dsize=dsize_stage), M2, dsize=dsize_stage)[h:h*2, w:w*2, :].copy()
+
+        # 裁剪旋转恢复
+        dsize_stage = (w, h)
+        M1 = cv.getRotationMatrix2D(((w-1)/2, (h-1)/2), angle, 1)
+        M2 = cv.getRotationMatrix2D(((w-1)/2, (h-1)/2), -angle, 1)
+        return cv.warpAffine(cv.warpAffine(src, M1, dsize=dsize_stage), M2, dsize=dsize_stage)
     else:
         dsize_stage = (w, h)
         M1 = cv.getRotationMatrix2D(((w-1)/2, (h-1)/2), angle, 1)
-        cv.warpAffine(src, M1, dsize=dsize_stage)
+        return cv.warpAffine(src, M1, dsize=dsize_stage)
 
 
 # 裁剪攻击
