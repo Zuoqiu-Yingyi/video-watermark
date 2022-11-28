@@ -4,6 +4,23 @@ import math
 import numpy as np
 
 
+def similarity(frame1: np.array, frame2: np.array) -> float:
+    """
+    计算帧间相似度
+    :params:
+        frame1: np.array
+            视频帧1
+        frame2: np.array
+            视频帧2
+    :return:
+        float
+            相邻帧相似度
+    """
+    X = np.mean(frame1)
+    Y = np.mean(frame2)
+    return np.sum((frame1 - X) * (frame2 - Y)) / np.sqrt(np.sum(np.square(frame1 - X)) * np.sum(np.square(frame2 - Y)))
+
+
 def MSE(img1: np.array, img2: np.array) -> float:
     """
     计算两张图片的均方误差 (Mean Squared Error, MSE)
