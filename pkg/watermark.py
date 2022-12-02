@@ -62,6 +62,7 @@ class Watermark(object):
             (-3, 3),
         ],
         chaoticMaker: T.Callable[[float, int], np.array] = chaos.logistic2,  # 混沌序列生成器
+        lockAspectRatio: bool = True,  # 水印图片是否锁定纵横比 (True: 缩放至合适大小后以比特序列方式嵌入, False: 缩放拉伸后嵌入)
         mode: MODE = MODE.DEV,  # 模式
         frames: slice = slice(0, 8),  # 帧切片
     ):
@@ -90,8 +91,13 @@ class Watermark(object):
 
         self.image_aspect_ratio = self.image_width / self.image_height  # 图片宽高比
 
-        self.watermark_width = math.floor((self.embedded_capacity * self.image_aspect_ratio) ** 0.5)  # 水印的宽度
-        self.watermark_height = math.floor(self.watermark_width / self.image_aspect_ratio)  # 水印的高度
+        if lockAspectRatio:  # 水印保持原始宽高比
+            self.watermark_width = math.floor((self.embedded_capacity * self.image_aspect_ratio) ** 0.5)  # 水印的宽度
+            self.watermark_height = math.floor(self.watermark_width / self.image_aspect_ratio)  # 水印的高度
+        else:  # 水印拉伸为视频宽高比
+            self.watermark_width = self.n_N  # 水印的宽度
+            self.watermark_height = self.m_N  # 水印的高度
+
         self.watermark_shape = (self.watermark_height, self.watermark_width)
         self.watermark_size = self.watermark_width * self.watermark_height
 
@@ -133,7 +139,7 @@ class Watermark(object):
             self.watermark_width = width
         if height is not None:
             self.watermark_height = height
-        self.watermark_image = cv.resize(self.image_binary, dsize=(self.watermark_height, self.watermark_width))
+        self.watermark_image = cv.resize(self.image_binary, dsize=(self.watermark_width, self.watermark_height))
         return self
 
     # 序列化/反序列化水印图像
