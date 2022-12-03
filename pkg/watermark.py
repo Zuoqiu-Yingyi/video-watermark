@@ -50,7 +50,7 @@ class Watermark(object):
         x: float,  # 混沌序列初值
         videoPath: str,  # 视频文件路径
         imagePath: str,  # 图像文件路径
-        QP: float = 48,  # 量化参数
+        QP: float = 40,  # 量化参数
         windowSize: T.Tuple[int, int] = (8, 8),  # DCT 窗口大小(高, 宽)
         embedPosition: T.Tuple[int, int] = (4, 4),  # 数据嵌入位置
         embedOffsets: T.List[T.Tuple[int, int]] = [  # 数据嵌入位置相邻系数的偏移量
@@ -77,6 +77,7 @@ class Watermark(object):
         self.frames = frames
 
         self.video = editor.VideoFileClip(videoPath)  # 载体视频
+        self.viedo_fps = self.video.fps  # 帧率
         self.video_nframes = self.video.reader.nframes  # 总帧数
         self.video_size = self.video.size  # 视频尺寸(高, 宽)
         self.image = cv.imread(imagePath)  # 水印图片
@@ -198,7 +199,7 @@ class Watermark(object):
                 self.tensor = np.zeros((*reversed(self.video_size), self.tensor_k))  # (高, 宽, 帧数)
                 k = 0
                 for i in frame_range:
-                    self.tensor[..., k] = cv.cvtColor(self.video.get_frame(i), cv.COLOR_RGB2GRAY)
+                    self.tensor[..., k] = cv.cvtColor(self.video.get_frame(i / self.viedo_fps), cv.COLOR_RGB2GRAY)
                     k += 1
             case TRAN.INVERSE:
                 pass
@@ -297,6 +298,7 @@ class Watermark(object):
         self,
         evalfuncs: T.List[T.Callable[[np.array, np.array], float]],
         QPs: None | float | T.Iterable = None,
+        slices: None | T.List[slice] = None,
     ) -> T.Dict[str, T.List[T.List[float]]]:
         """
         透明性评估
@@ -308,6 +310,10 @@ class Watermark(object):
                 None: 量化参数为原设定值
                 float: 量化参数为该值
                 Iterable: 对量化参数进行扫描
+            slices: None | T.List[slice] = None
+                帧切片
+                None: 使用默认的帧切片评估
+                T.List[slice, slice]: 使用指定的帧切片
         :return:
             T.Dict[str, T.List[T.List[float]]]
                 透明性评估值
@@ -320,17 +326,6 @@ class Watermark(object):
         for evalfunc in evalfuncs:
             eval_result[evalfunc.__name__] = []
 
-        self.imageColor2Gray() \
-            .imageGray2Binary() \
-            .imageResize() \
-            .serialize() \
-            .scramble() \
-            .frame() \
-            .tensorDecompose() \
-            .tensorFeature() \
-            .tensorFeatureImage() \
-            .haar()
-
         if isinstance(QPs, T.Iterable):
             pass
         elif isinstance(QPs, float):
@@ -338,19 +333,37 @@ class Watermark(object):
         else:
             QPs = [self.QP]
 
-        for self.QP in QPs:
-            self.embed() \
-                .haar(tran=TRAN.INVERSE) \
-                .tensorFeatureImage(tran=TRAN.INVERSE) \
-                .tensorFeature(tran=TRAN.INVERSE) \
-                .tensorDecompose(tran=TRAN.INVERSE)
-            for evalfunc in evalfuncs:
-                eval_result[evalfunc.__name__].append([
-                    evalfunc(
-                        self.tensor[..., i],
-                        self.embedded_tensor_uint8[..., i]
-                    ) for i in range(self.tensor.shape[2])
-                ])
+        if isinstance(slices, T.Iterable):
+            pass
+        else:
+            slices = [self.frames]
+
+        self.imageColor2Gray() \
+            .imageGray2Binary() \
+            .imageResize() \
+            .serialize() \
+            .scramble()
+
+        for self.frames in slices:
+            self.frame() \
+                .tensorDecompose() \
+                .tensorFeature() \
+                .tensorFeatureImage() \
+                .haar()
+
+            for self.QP in QPs:
+                self.embed() \
+                    .haar(tran=TRAN.INVERSE) \
+                    .tensorFeatureImage(tran=TRAN.INVERSE) \
+                    .tensorFeature(tran=TRAN.INVERSE) \
+                    .tensorDecompose(tran=TRAN.INVERSE)
+                for evalfunc in evalfuncs:
+                    eval_result[evalfunc.__name__].append([
+                        evalfunc(
+                            self.tensor[..., i],
+                            self.embedded_tensor_uint8[..., i]
+                        ) for i in range(self.tensor.shape[2])
+                    ])
 
         return eval_result
 
